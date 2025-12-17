@@ -10,12 +10,12 @@ class ConfigFileWatcher {
     private var lastModificationDate: Date?
     private var debounceTask: Task<Void, Never>?
 
-    func startWatching(configUrl: URL) {
+    func startWatching() {
         stopWatching()
 
-        guard config.autoReloadConfig else { return }
+        if !config.autoReloadConfig { return }
 
-        guard configUrl != defaultConfigUrl else { return }
+        if configUrl == defaultConfigUrl { return }
 
         watchedFileUrl = configUrl
 
@@ -112,7 +112,7 @@ class ConfigFileWatcher {
             return
         }
 
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        if !FileManager.default.fileExists(atPath: url.path) {
             return
         }
 
@@ -122,7 +122,7 @@ class ConfigFileWatcher {
             return
         }
 
-        guard modDate > (lastModificationDate ?? .distantPast) else {
+        if modDate <= (lastModificationDate ?? .distantPast) {
             return
         }
 
@@ -133,11 +133,14 @@ class ConfigFileWatcher {
         // Debounce the reload to handle atomic save sequences (write → rename → swap)
         debounceTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
+            if Task.isCancelled { return }
             // Reload config within a session to ensure layout refresh happens
-            guard let token: RunSessionGuard = .isServerEnabled else { return }
-            try? await runSession(.autoReloadConfig, token) {
-                _ = reloadConfig(forceConfigUrl: url)
+            if let token: RunSessionGuard = .isServerEnabled {
+                try? await runSession(.autoReloadConfig, token) {
+                    _ = reloadConfig(forceConfigUrl: url)
+                }
+            } else {
+                return
             }
         }
     }
@@ -150,7 +153,7 @@ func startConfigFileWatcher() {
     if _configFileWatcher == nil {
         _configFileWatcher = ConfigFileWatcher()
     }
-    _configFileWatcher?.startWatching(configUrl: configUrl)
+    _configFileWatcher?.startWatching()
 }
 
 @MainActor
